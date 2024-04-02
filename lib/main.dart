@@ -1,27 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_learning/home_screen.dart';
+import 'package:get/get_navigation/src/root/get_material_app.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const CounterApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class CounterApp extends StatelessWidget {
+  const CounterApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: Center(
-          child: Text("Flutter Learning"),
-        ),
-      ),
+    return const GetMaterialApp(
+      home: HomeScreen(),
     );
   }
 }
