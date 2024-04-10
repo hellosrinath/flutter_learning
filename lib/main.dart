@@ -1,11 +1,19 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_learning/awesome_gallary.dart';
+import 'package:flutter_learning/firebase_options.dart';
 
-void main() {
-  runApp(const MyApp());
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const MovieApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MovieApp extends StatelessWidget {
+  const MovieApp({super.key});
 
   // This widget is the root of your application.
   @override
@@ -17,11 +25,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: Center(
-          child: Text("Flutter Learning"),
-        ),
-      ),
+      home: const AwesomeGallery(),
     );
   }
 }
