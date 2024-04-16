@@ -15,6 +15,7 @@ class _AwesomeGalleryState extends State<AwesomeGallery> {
   final storageRef = FirebaseStorage.instance.ref().child("images");
   XFile? pickedImageFile;
   List<String> urlList = [];
+  bool _isLoadingImage = false;
 
   @override
   void initState() {
@@ -37,19 +38,28 @@ class _AwesomeGalleryState extends State<AwesomeGallery> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: ListView.separated(
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Image.network(
-              urlList[index],
-              width: 200,
-              height: 200,
-            ),
-          );
-        },
-        separatorBuilder: (_, __) => const Divider(),
-        itemCount: urlList.length,
+      body: Visibility(
+        visible: _isLoadingImage == false,
+        replacement: const Center(
+          child: CircularProgressIndicator(),
+        ),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, mainAxisSpacing: 8.0, crossAxisSpacing: 8.0),
+          padding: const EdgeInsets.all(8),
+          itemCount: urlList.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Image.network(
+                urlList[index],
+                width: 200,
+                height: 200,
+                fit: BoxFit.cover,
+              ),
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         foregroundColor: Colors.white,
@@ -92,6 +102,7 @@ class _AwesomeGalleryState extends State<AwesomeGallery> {
               debugPrint("progress: upload error");
               break;
             case TaskState.success:
+              _getAllUploadedFile();
               debugPrint("progress: upload success");
               break;
           }
@@ -101,6 +112,8 @@ class _AwesomeGalleryState extends State<AwesomeGallery> {
   }
 
   Future<void> _getAllUploadedFile() async {
+    _isLoadingImage = true;
+    setState(() {});
     final listResult = await storageRef.listAll();
     urlList.clear();
     for (var item in listResult.items) {
@@ -109,6 +122,7 @@ class _AwesomeGalleryState extends State<AwesomeGallery> {
       urlList.add(url);
       debugPrint("progress: $url");
     }
+    _isLoadingImage = false;
     setState(() {});
   }
 }
