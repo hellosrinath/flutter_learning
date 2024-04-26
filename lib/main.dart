@@ -1,14 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_learning/awesome_gallary.dart';
-import 'package:flutter_learning/firebase_options.dart';
+import 'package:flutter_learning/google_map.dart';
 
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
   runApp(const MovieApp());
 }
 
@@ -25,7 +19,7 @@ class MovieApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: const AwesomeGallery(),
+      home: const GoogleMaps(),
     );
   }
 }
