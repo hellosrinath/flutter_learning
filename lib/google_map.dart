@@ -1,6 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class GoogleMaps extends StatefulWidget {
@@ -11,33 +11,120 @@ class GoogleMaps extends StatefulWidget {
 }
 
 class _GoogleMapsState extends State<GoogleMaps> {
-  LatLng myLatLong = const LatLng(22.39094717909865, 91.85616162280324);
-  String address = 'Lucknow';
-  List<LatLng> latLongList = [
-    LatLng(22.393861920202298, 91.85711156576872),
-    LatLng(22.392557158179052, 91.85560047626495),
-    LatLng(22.39314428710485, 91.85861393809319)
-  ];
-
-  List<List<LatLng>> holesList = [];
-
-  setMarker(LatLng value) async {
-    myLatLong = value;
-    address = "${value.latitude},${value.longitude}";
-    setState(() {});
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    holesList.add(latLongList);
-  }
-
+  bool _mapReady = false;
+  final double _zoomValue = 18;
   late GoogleMapController _googleMapController;
+  LatLng myLatLong = const LatLng(22.39094717909865, 91.85616162280324);
 
-  Future<void> initializedMap() async {
-    debugPrint(
-        "visible region: ${await _googleMapController.getVisibleRegion()}");
+  List<LatLng> locationList = [];
+
+  String address = 'Lucknow';
+  late CameraPosition _cameraPosition = CameraPosition(
+    target: myLatLong,
+    tilt: 50,
+    zoom: _zoomValue,
+    bearing: 150,
+  );
+
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission locationPermission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location service is disabled');
+    }
+    locationPermission = await Geolocator.checkPermission();
+
+    if (locationPermission == LocationPermission.denied) {
+      locationPermission = await Geolocator.requestPermission();
+      if (locationPermission == LocationPermission.denied) {
+        return Future.error('Location permission are denied');
+      }
+    }
+    if (locationPermission == LocationPermission.deniedForever) {
+      return Future.error('Location permission are permanently denied, we'
+          'can not request permissions');
+    }
+    final location = await Geolocator.getCurrentPosition();
+    debugPrint("current location: ${location.latitude},${location.longitude}");
+    myLatLong = LatLng(location.latitude, location.longitude);
+    _cameraPosition = CameraPosition(
+      target: myLatLong,
+      tilt: 50,
+      zoom: _zoomValue,
+      bearing: 150,
+    );
+    _googleMapController
+        .animateCamera(CameraUpdate.newCameraPosition(_cameraPosition));
+    _mapReady = true;
+    locationList.add(LatLng(location.latitude, location.longitude));
+    setState(() {});
+    return await Geolocator.getCurrentPosition();
+  }
+
+  void _listenCurrentLocation() async {
+    Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      timeLimit: Duration(seconds: 10),
+    )).listen((location) async {
+      address = await getPlacemarks(location.latitude, location.longitude);
+      debugPrint("locationStream: ${location.latitude},${location.longitude}");
+      _cameraPosition = CameraPosition(
+        target: LatLng(location.latitude, location.longitude),
+        tilt: 50,
+        zoom: _zoomValue,
+        bearing: 150,
+      );
+      _googleMapController
+          .animateCamera(CameraUpdate.newCameraPosition(_cameraPosition));
+
+      locationList.add(LatLng(location.latitude, location.longitude));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Location: ${location.latitude},${location.longitude}"),
+      ));
+      setState(() {});
+    });
+  }
+
+  Future<String> getPlacemarks(double lat, double long) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, long);
+
+      var address = '';
+
+      if (placemarks.isNotEmpty) {
+        // Concatenate non-null components of the address
+        var streets = placemarks.reversed
+            .map((placemark) => placemark.street)
+            .where((street) => street != null);
+
+        // Filter out unwanted parts
+        streets = streets.where((street) =>
+            street!.toLowerCase() !=
+            placemarks.reversed.last.locality!
+                .toLowerCase()); // Remove city names
+        streets = streets
+            .where((street) => !street!.contains('+')); // Remove street codes
+
+        address += streets.join(', ');
+
+        address += ', ${placemarks.reversed.last.subLocality ?? ''}';
+        address += ', ${placemarks.reversed.last.locality ?? ''}';
+        address += ', ${placemarks.reversed.last.subAdministrativeArea ?? ''}';
+        address += ', ${placemarks.reversed.last.administrativeArea ?? ''}';
+        address += ', ${placemarks.reversed.last.postalCode ?? ''}';
+        address += ', ${placemarks.reversed.last.country ?? ''}';
+      }
+
+      print("Your Address for ($lat, $long) is: $address");
+
+      return address;
+    } catch (e) {
+      print("Error getting placemarks: $e");
+      return "No Address";
+    }
   }
 
   @override
@@ -46,111 +133,32 @@ class _GoogleMapsState extends State<GoogleMaps> {
       body: GoogleMap(
         onMapCreated: (GoogleMapController googleMapController) {
           _googleMapController = googleMapController;
-          initializedMap();
+          _determinePosition();
+          _listenCurrentLocation();
         },
         myLocationButtonEnabled: true,
         myLocationEnabled: true,
-        initialCameraPosition: CameraPosition(
-          target: myLatLong,
-          zoom: 17,
-          tilt: 45,
-          bearing: 45,
-        ),
+        initialCameraPosition: _cameraPosition,
         markers: {
-          Marker(
-            infoWindow: InfoWindow(title: address),
-            markerId: const MarkerId('1'),
-            position: myLatLong,
-            /*draggable: true,
-            onDragEnd: (value) {
-              setMarker(value);
-            },*/
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueYellow),
-          ),
-          Marker(
-            infoWindow: InfoWindow(title: address),
-            markerId: const MarkerId('11'),
-            position: const LatLng(22.3902203976883, 91.85520887374878),
-            /*draggable: true,
-            onDragEnd: (value) {
-              setMarker(value);
-            },*/
-            icon:
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          ),
-          Marker(
-            infoWindow: InfoWindow(title: address),
-            markerId: const MarkerId('12'),
-            position: const LatLng(22.389981697470944, 91.85433883219957),
-            /*draggable: true,
-            onDragEnd: (value) {
-              setMarker(value);
-            },*/
-            icon:
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-          ),
-          Marker(
-            infoWindow: InfoWindow(title: address),
-            markerId: const MarkerId('13'),
-            position: const LatLng(22.388828490650255, 91.85372829437256),
-            /*draggable: true,
-            onDragEnd: (value) {
-              setMarker(value);
-            },*/
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueAzure),
-          ),
-        },
-        circles: {
-          Circle(
-            circleId: const CircleId("dfsd"),
-            center: const LatLng(22.3902203976883, 91.85520887374878),
-            radius: 100,
-            strokeColor: Colors.red,
-            strokeWidth: 2,
-            fillColor: Colors.red.withOpacity(0.15),
-          ),
-          Circle(
-              circleId: const CircleId("dfsddsfds"),
-              center: const LatLng(22.388828490650255, 91.85372829437256),
-              radius: 100,
-              strokeColor: Colors.green,
-              strokeWidth: 2,
-              fillColor: Colors.green.withOpacity(0.15),
-              onTap: () {
-                debugPrint("Tap Circle");
-              },
-              consumeTapEvents: true)
-        },
-        onTap: (value) {
-          debugPrint("location: $value");
-          setMarker(value);
+          _mapReady
+              ? Marker(
+                  infoWindow: InfoWindow(title: address),
+                  markerId: const MarkerId('1'),
+                  position: myLatLong,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRose),
+                )
+              : const Marker(markerId: MarkerId("dsfd"))
         },
         polylines: {
-          const Polyline(
-            polylineId: PolylineId("sdfsdff"),
-            points: [
-              LatLng(22.386796405363178, 91.85167271643877),
-              LatLng(22.398135402845174, 91.86393644660711),
-            ],
+          Polyline(
+            polylineId: const PolylineId("sdfsdff"),
+            points: locationList,
+            color: Colors.red,
           ),
         },
-        polygons: {
-          Polygon(
-            polygonId: const PolygonId("sdfsdf"),
-            points: const [
-              LatLng(22.393861920202298, 91.85711156576872),
-              LatLng(22.393730173582902, 91.8560678511858),
-              LatLng(22.392557158179052, 91.85560047626495),
-              LatLng(22.392015286199946, 91.8570988252759),
-              LatLng(22.39314428710485, 91.85861393809319),
-            ],
-            strokeColor: Colors.green,
-            strokeWidth: 2,
-            fillColor: Colors.green.withOpacity(0.15),
-            holes: holesList,
-          ),
+        onTap: (value) {
+          debugPrint("tapLocation: $value");
         },
       ),
     );
